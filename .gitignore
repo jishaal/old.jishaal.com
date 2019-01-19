@@ -4,4 +4,3 @@ node_modules
 build
 *.log
 .idea/
-src/pages/posts/2019-01-05-welcome

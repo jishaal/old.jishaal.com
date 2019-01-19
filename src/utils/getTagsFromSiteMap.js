@@ -7,15 +7,10 @@
  * development, while also allowing production builds to use a prebuilt copy.
  */
 function getTagsFromSiteMap(siteMap) {
-  let routes = Object.values(siteMap.pages)
-  return Array.from(
-    new Set(
-      [].concat.apply(
-        [],
-        routes.map(route => (route.meta && route.meta.tags) || []),
-      ),
-    ),
-  )
+	let routes = Object.values(siteMap.pages);
+	return Array.from(
+		new Set([].concat.apply([], routes.map(route => (route.meta && route.meta.tags) || [])))
+	);
 }
 
-export default getTagsFromSiteMap
+export default getTagsFromSiteMap;

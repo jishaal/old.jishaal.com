@@ -5,12 +5,12 @@ import App from './App';
 import pages from './pages';
 
 it('renders without crashing', () => {
-  const div = document.createElement('div');
-  const navigation = Navi.createMemoryNavigation({
-    pages,
-    url: '/'
-  });
+	const div = document.createElement('div');
+	const navigation = Navi.createMemoryNavigation({
+		pages,
+		url: '/'
+	});
 
-  ReactDOM.render(<App navigation={navigation} />, div);
-  ReactDOM.unmountComponentAtNode(div);
+	ReactDOM.render(<App navigation={navigation} />, div);
+	ReactDOM.unmountComponentAtNode(div);
 });

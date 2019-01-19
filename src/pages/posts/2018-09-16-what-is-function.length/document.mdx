@@ -1,0 +1,33 @@
+import code1 from './code_1.png'
+import code2 from './code_2.png'
+import styles from './document.module.css'
+
+A colleague and I recently came across code that used the `.length` property on a function.
+This got us asking what this value actually referred to, so I decided to look up the fantastic
+[MDN web docs](https://medium.com/r/?url=https%3A%2F%2Fdeveloper.mozilla.org%2Fen-US%2F) for some info.
+
+## What does it do?
+
+I discovered that `function.length` is similar to `arguments.length` but it gives you back the number of arguments a
+function expects, rather than what is actually passed in.
+
+<img src={code1} className={styles["img"]} alt="code explaining" />
+
+## But wait, there’s a catch
+
+Like almost anything in JavaScript, there is always some quirky behaviour that one needs to be aware of 😓
+
+> This number excludes the rest parameters and only includes parameters before the first one with a default value — MDN
+
+It turns out that rest parameters as well as defaulted parameters do not count towards this number.
+But what is more interesting is that as soon as a parameter is defined to have a default value within a function,
+the `function.length` property only returns the count of parameters that appear before that defaulted parameter,
+i.e. all following parameters do not count towards the expected arguments. So we see the behaviour below 🤯
+
+<img src={code2} className={styles["img"]} alt="code explaining" />
+
+## Should I use this?
+
+The behaviour outlined above makes it a fairly unpredictable indication of the number of parameters a function can have.
+[The original code this was seen in](https://twitter.com/FlavioCorpa/status/1041994408038735872) was implementing a curry function,
+however as we have seen, the `function.length` would cause errors if any parameter was to be defaulted. Still an interesting API to know and understand nonetheless 🙂

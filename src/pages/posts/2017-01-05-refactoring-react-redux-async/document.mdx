@@ -1,0 +1,224 @@
+
+> This article was originally published in the [Xero Developer Blog](https://devblog.xero.com/the-three-rs-refactoring-react-and-redux-for-robust-async-js-252648a8632f)
+
+The previous [two](https://devblog.xero.com/a-saga-that-led-xero-to-redux-aa1361b9a800#.k5d5tjvjf) [articles](https://devblog.xero.com/learning-and-scaling-a-react-redux-app-with-a-distributed-team-e4c397def187#.faj7m031u)
+in this series highlighted how frontend development practices at Xero have evolved over the past decade, and how we have
+resorted to building complex applications using React and Redux. With building any application at scale, user-interactions
+that lead to a number of side-effects are unavoidable. This article will focus specifically on how we have come to use
+Redux Saga to manage these side-effects.
+
+## Early patterns
+
+During the initial implementation of applications at Xero, the theme was to handle side-effect driven functionality in the lifecycle methods of React components.
+A common example of this was activating an asynchronous API call to fetch some data in `componentDidMount()`. While code in this form is not necessarily incorrect,
+it has the potential to make components more complex than they should be. This has a flow-on effect to the testability and maintainability of the component in-hand,
+where business logic is tied to the view/render layer.
+
+Therefore if components are only concerned with rendering and dispatching actions while reducers are pure functions that calculate a new state,
+then where can impure business logic live? A code review from some Xero developers with more React and Redux experience led to a
+strong recommendation that instance lifecycle methods were not the place to call APIs, and we should look at middleware for Redux.
+We settled on using Redux Saga to encapsulate all of our business logic and haven’t looked back since.
+
+The first uses of sagas we implemented were simple API fetch calls, such as the example below.
+
+```javascript
+import { takeEvery } from 'redux-saga';
+import { call, put } from 'redux-saga/effects';
+
+import * as actionTypes from '../action-types';
+import * as api from '../api';
+
+export function* createInvoice(action) {
+  try {
+    const resp = yield call(api.createInvoice, action.payload);
+
+    yield put(actionTypes.receiveInvoice(resp));
+  } catch (error) {
+    yield put(actionTypes.createInvoiceFailure(error));
+  }
+}
+
+export function* createInvoiceWatcher() {
+  yield takeEvery(actionTypes.CREATE_INVOICE, createInvoice);
+}
+```
+
+While the above example is self-contained and simple — making an API call and dealing with the response — evolving requirements
+quickly led to far more bloated sagas which were both less readable and less testable. Immediately there were many different
+paths through the code (due to nested control blocks), which led to multiple test cases without even beginning to test the
+actual functionality (for example data being correctly defaulted/overridden). Additionally, while saga tests are conceptually
+quite simple, they require a large amount of boilerplate (as every step needs to be run using `sagaFunction.next()`).
+
+## Modularize and compose
+
+The solution was to split the saga into smaller, more functional blocks (which live in the same file), as in general they
+are concerned with a single user interaction (for example creating an invoice) and are only exported for testing purposes.
+Splitting them made tests simpler, more modular and easier to understand. Even `createInvoice()`, which kicks off the saga chain,
+only really needs to test ‘can create’ logic, and that appropriate sagas are run in each case.
+
+```javascript
+// import(s)
+...
+// Make API Call, indicate fetching status
+export function* postInvoice(invoice) {
+  try {
+    const resp = yield call(api.createInvoice, invoice);
+
+    yield put(actionTypes.receiveInvoice(resp));
+  } catch (error) {
+    yield put(actionTypes.createInvoiceFailure(error));
+  }
+}
+
+// Default / Manipulate data
+export function defaultAttribute(invoiceDetails) {
+  return {
+    status: 'defaultValue',
+    ...invoiceDetails
+  };
+}
+
+// Listen for trigger, check data is valid, aggregate other sagas
+export function* createInvoice() {
+  const canCreateInvoice = yield select(getInvoiceIsValid);
+
+  if (canCreateInvoice) {
+    const invoiceDetails = yield select(getInvoiceDetails);
+    const invoice = yield call(defaultAttribute(invoiceDetails);
+
+    yield fork(postInvoice, invoice);
+  } else {
+    yield put(actionTypes.alertCannotCreateInvoice());
+  }
+};
+
+// Root 'takeEvery Saga'
+...
+```
+
+But, before we go too deep into modularizing each and every part of a saga’s functionality, isn’t there a risk we’ll end
+up right where we were 5–10 years ago with spaghetti functions, ‘callback hell’ and totally unreadable code? The beauty of
+Redux Saga (or more generally generator functions) is that ‘forking’ to another saga still maintains unidirectional flow.
+With considered use of `fork` and `call` functions, side-effects can be controlled and dealt with whilst maintaining a
+logical unidirectional flow.
+
+## Sharing and collaborating
+
+At this point we had another opportunity to share our work with other teams, and get another perspective. This was a rewarding
+process, which highlighted that perhaps modularization of sagas detracted from the developer’s way of looking at them — as
+a function representing a single user interaction with a unidirectional flow to match.
+
+Conversely, this conversation highlighted that there certainly are cases for more modular sagas, as we gained exposure
+to other team’s implementations. The examples below shows the end result of a discussion we had with the Xero Dashboard
+project team, who created the complex saga [we covered back in article one](https://devblog.xero.com/a-saga-that-led-xero-to-redux-aa1361b9a800#.6wykgqwm6).
+
+```javascript
+
+// 2016 — React/Redux Sagas
+export function* listenForRefreshFeedAction() {
+  yield* takeEvery(actionTypes.REFRESH_FEED, refreshFeed);
+}
+function* refreshFeed(action) {
+  const endpoints = yield select(endpointsSelector);
+  const initialRequestResponse = yield call(xhrPost, endpoints.refreshFeed, action.payload);
+  if (initialRequestResponse.Success) {
+    yield put(actionTypes.REFRESH_FEED_IN_PROGRESS);
+    // poll messaging services to get an update on long running task
+    let pollResponse;
+    for (let count = 0; count < POLL_ITERATIONS; count++) {
+      yield call(delay, POLL_FREQUENCY);
+      const pollResponse = yield call(xhrPost, endpoints.poll, initialRequestResponse.pollPayload);
+      const parsedPollResponse = parsePollResponses(pollResponse ); //helper that makes sense of the pollResponse
+      if (parsedPollResponse.keepPolling) {
+        yield put({type: actionTypes.REFRESH_FEED_UPDATE, parsedPollResponse});
+      } else {
+        count = POLL_ITERATIONS;
+      }
+    }
+    yield put({type: actionTypes.REFRESH_FEED_POLL_COMPLETE, parsedPollResponse});
+    if (parsedPollResponse && parsedPollResponse.action === POLL_COMPLETE) {
+      if (parsedPollResponse.bankSecurityChallange) {
+        const bankChallengeResponse= yield call(xhrPost, endpoints.bankSecurityChallange, pollResponse);
+        if (bankChallengeResponse && bankChallengeResponse.Success) {
+          yield put({type: actionTypes.REFRESH_FEED_SECURITY_SUCCESS, bankChallengeResponse});
+        } else {
+          yield put({type: actionTypes.REFRESH_FEED_SECURITY_FAILED, bankChallengeResponse});
+        }
+      }
+    } else {
+      yield put({type: actionTypes.REFRESH_FEED_POLL_FAIL, pollResponse});
+    }
+  } else {
+    yield put({type: actionTypes.REFRESH_FEED_FAIL, initialRequestResponse});
+  }
+}
+```
+
+As you can see, this single saga has a lot of responsibilities. Applying our thinking on modularizing large sagas we
+can `fork` sagas, `doPolling`, and `bankSecurityChallenge`, which were originally part of the single extended saga. Both
+contain API calls and varied logic themselves, which made the single saga long, less readable, and involved a large
+amount of boilerplate code in each test. By breaking these apart, we can now also test each saga function separately.
+
+``` javascript
+export function* listenForRefreshFeedAction() {
+  yield* takeEvery(actionTypes.REFRESH_FEED, refreshFeed);
+}
+
+function* refreshFeed(action) {
+  const endpoints = yield select(endpointsSelector);
+  const initialRequestResponse = yield call(xhrPost, endpoints.refreshFeed, action.payload);
+
+  if (initialRequestResponse.Success) {
+    yield fork(doPolling, initialRequestResponse)
+  } else {
+    yield put({type: actionTypes.REFRESH_FEED_FAIL, initialRequestResponse});
+  }
+}
+
+function* doPolling(initialRequestResponse) {
+  yield put(actionTypes.REFRESH_FEED_IN_PROGRESS);
+  // poll messaging services to get an update on long running tas
+  let pollResponse;
+
+  for (let count = 0; count < POLL_ITERATIONS; count++) {
+    yield call(delay, POLL_FREQUENCY);
+    pollResponse = yield call(xhrPost, endpoints.poll, initialRequestResponse.pollPayload);
+    const parsedPollResponse = parsePollResponses(pollResponse ); // helper that makes sense of the pollResponse
+
+    if (parsedPollResponse.keepPolling) {
+      yield put({type: actionTypes.REFRESH_FEED_UPDATE, parsedPollResponse});
+    } else {
+      count = POLL_ITERATIONS;
+    }
+  }
+
+  yield put({type: actionTypes.REFRESH_FEED_POLL_COMPLETE, parsedPollResponse});
+
+  if (parsedPollResponse && parsedPollResponse.action === POLL_COMPLETE) {
+    if (parsedPollResponse.bankSecurityChallenge) {
+      yield fork(bankSecurityChallenge);
+    }
+  } else {
+    yield put({type: actionTypes.REFRESH_FEED_POLL_FAIL, pollResponse});
+  }
+}
+
+function* bankSecurityChallenge() {
+// ... call the API to initiate bank challenge
+}
+```
+As you can see, feedback and discussion in this way was extremely rewarding, as it brought to light limitations in
+different team’s implementation of the Redux Saga library. Even more so, it helped get the ball rolling towards a
+more cohesive, cross-team concept of saga best practice, which should ultimately improve company-wide understanding
+and implementation of sagas, among other frontend tools and modules.
+
+## Evolving frontend practices
+
+Throughout the three articles in this series, we have covered a decade worth of frontend practices at Xero.
+The past year has seen the most significant change in frontend in our nearly 10 year history. From rebuilding old parts
+such as the Xero Dashboard, to completely new projects such as Xero HQ, and the introduction of a common pattern library,
+we are moving toward a more cohesive experience for not only our developers, but also our users. As a team, we have great
+confidence in our current stack of tools and how it has made developing complex user-interfaces easier and quicker.
+As the state of frontend evolves, we aim to evolve with it. The saga continues.
+
+Special thanks to my fellow colleagues [Steve Roberts](https://devblog.xero.com/@mbudm) and [Andrew Carell](https://devblog.xero.com/@andy__carrell) for collaborating on this article.

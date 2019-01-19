@@ -1,0 +1,133 @@
+CSS isn't a real language. Well at least not in the same league as the likes of JavaScript or PHP. It is way more concise, strict and declarative. These features are fundamental to its purpose - that is applying visual and layout properties to HTML markup.
+
+One caveat of CSS is that it's very loose. It relies on strict order, a cascading methodology and most importantly, specificity.  These characteristics give the ability to write some CSS code, then later on override those rules with more specific selectors. This is great as it gives developers a great deal of control over which styles are applied to different areas of HTML markup. However if CSS is unmanaged, you can end up writing some pretty nasty code. Like any programming language, it is important to maintain a DRY (don't repeat yourself) approach, more-so with CSS where you can end up repeating paradigms almost automatically. In recent years, there has been a shift to to a more object-oriented approach when it comes to CSS. Instead of relying on writing DOM specific styles, the focus is on creating reusable classes for a more maintainable codebase. Twitter Bootstrap, a popular UI toolkit uses this methodology throughout their project, giving its users great control over how HTML is structured without having to rely on strict markup dictated by specific CSS styles. This makes Bootstrap extremely flexible and easy to work with.
+
+## BEM
+
+One approach to writing Object Oriented CSS (OOCSS) is _Block Element Modifier_ or [BEM](http://bem.info/) - something I've been using for the past few months. The BEM methodology provides a set of guidelines and principles when naming your CSS classes (not IDs), while at the same time encouraging best OOCSS practices. These guidelines help us avoid duplication of code caused by repeated visual styles by promoting code reuse. Bear in mind that the idea of object-oriented here is quite different to what you would expect in a traditional programming language that deals with objects and functions such as C# or Python. However the underlying themes are they same - abstracting common patterns and developing modular component based systems. 
+>To maintain UI consistency and minimise development effort on typical interface components, those components have to be easily reusable. - BEM
+
+The BEM approach is not strict and can be used in other languages as well such as JavaScript. For CSS, I have been using the following convention. 
+
+```css
+.block                        /* module (namespace) */
+.block__element               /* descendant of .block */
+.block--modifier              /* different state of .block */
+.block__element--modifier     /* modified descendant of .block */
+```
+
+* **Block** - The base of the crafted component. This could be anything from a simple button to a module that may have more elements nested within them e.g. a navigation. 
+* **Element** - An element is a descendant of our block element, identified through a double-underscore `__`. By reusing the block element's name, we are effectively creating a namespace that provides us with a reference to how pieces of the component are related. 
+* **Modifier** - A modifier is denoted with a double dash `--` syntax. If a block or element has a different visual or behavioral state then this syntax is used. E.g. a component could have an enabled state where the background is darker, therefore we could name the class `block--enabled`.
+
+Depending on the type of component, blocks generally do not having any dimensional or layout properties defined. These values should be controlled by its container element and the context it appears in (using modifiers). Through this method, we have the ability to place a block in a variety of situations which gives us great flexibility when developing the frontend.
+
+## Using BEM
+
+Armed with above set of guidelines, one can easily start decoupling their CSS and creating some smart modular classes. A trivial example of BEM is given below, where a navigation component has been created. Each element is given appropriate classes, providing unique styles that do not inherently rely on the HTML structure. 
+
+```html
+<ul class="nav nav--sticky">
+  <li class="nav__item"><a href="#" class="nav__link">Item 1</a></li>
+  <li class="nav__item"><a href="#" class="nav__link">Item 2</a></li>
+  <li class="nav__item"><a href="#" class="nav__link">Item 3</a></li>
+  <li class="nav__item nav__item--active"><a href="#" class="nav__link">Item 4</a></li>
+  <li class="nav__item"><a href="#" class="nav__link">Item 5</a></li>
+</ul>
+```
+
+Below, we are leveraging the power of a new Sass 3.3 feature. This allows us to use the parent ampersand `&` selector to create a new class with a prefix - quite handy for BEM where the block name is repeated throughout the module that is being developed.
+
+```scss
+.nav {
+  list-style: none;
+  ...
+
+  &__item {             /* Sass 3.3+ feature, helpful for BEM style selectors */
+    margin-right: 1em;
+    ...
+    
+    &--is-active {
+      .nav__link {
+        color: $nav-active; 
+      }
+    }
+  }
+  
+  &__link {
+    text-decoration: none;
+    &:hover {
+      color: $nav-active;
+    }
+  }
+  
+  &--sticky {
+    positon: fixed;
+  }
+}
+```
+
+
+This results is some nice and resusable CSS classes as below. The beauty of this is that now when reading through our HTML, we can instantly identify how the component has been created. Descriptive class names can vastly improve readability and scannability, crucial when attempting to extend or debug CSS components. 
+
+
+```css
+.nav { ... }        /* Our block level component */
+.nav__item { ... }  /* Each <li> item is an element */
+.nav__item--is-active .nav__link { ... } /* Give an active modifier */
+.nav__link { ... }  /* Our link item here is an <a> tag */
+.nav__link:hover { ... } 
+.nav--sticky { ... }  /* Modifier to give our .nav a fixed position */
+```
+
+## SASS Placeholders
+
+A caveat of BEM is that in certain situations, class attributes can become bloated. A common example is when creating buttons. We can easily end up with some HTML that looks like this:
+
+```html
+<a class="btn btn--success btn--rounded btn--large"></a>
+```
+
+One way to combat the _bloat_ is to leverage the power of SASS placeholders and the `@extend` syntax, allowing us to create and use modifiers internally instead. Placeholder classes are created by using the percentage `%` symbol.
+
+```scss
+%btn { ... } /* our base button */
+%btn--success { ... } /* a color modifier */
+%btn--rounded { ... } /* makes a soft button */
+%btn--large { ... }   /* larger size than our base */
+
+.btn--okay{
+  @extend %btn;
+  @extend %btn--success;
+  @extend %btn--rounded;
+  @extend %btn--large;
+}
+```
+
+Here we have a variety of DRY placeholder classes that have been extended to create a nice green button with the class of `btn--okay`.  These can be manipulated internally to create a large variety of button components. Now all we need to do is add this single class, giving the same result as before. 
+
+```html
+<a class="btn--okay"></a>
+```
+
+Placeholder classes are a great feature of Sass. Like Sass variables, they do not get output to CSS and mainly exist to be extended. In my opinion, one should make use of these as much as possible. [Check out this post](http://www.sitepoint.com/sass-mixin-placeholder/) for information on placeholders and how they compare with sass mixins.
+
+### Summary & Further Reading
+
+In this article, I have given a quick overview of how we can use BEM to start thinking more modularly when developing our frontend CSS. At first, working with BEM can be quite strange. You need to really take the design and break it down, focusing on patterns and abstractions. It requires a bit more planning but the time spent here is important to make sure that repetition is kept to a minimum for developer sanity. For me, stepping away from the mindset of creating _Pages_ and starting to think about building blocks of a site made sense. This way scaling a design is quicker and more painless than having to worry about what will happen if some HTML structure changes just every-so slightly. Unfortunately this site was already well into development when I came across BEM. However when I choose to revamp it, I hope to use this new technique during the refactoring process. 
+
+Below are some tips that may help you when starting with BEM. Also included are some links for further reading to help master this methodology. Happy BEM'ing!
+
+* If a component is getting too complex, abstract and break it down further. 
+* Take some time naming your classes. Make them readable, focusing on context and function, not content.
+* Not all situations require a BEM approach. For example, you find yourself using a single DRY class on an element giving it a unique property. Feel free to experiment to find what works for you. 
+
+And some links:
+
+* [MindBEMding – getting your head ’round BEM syntax - CSS Wizardry](http://csswizardry.com/2013/01/mindbemding-getting-your-head-round-bem-syntax/)
+* [BEM naming guidelines - Integralist ](https://github.com/Integralist/Style-Guides/blob/master/CSS%20Style%20Guide.md#some-bem-naming-guidelines)
+
+Some sites using BEM (check out the source):
+
+* [The Guardian UK](http://www.theguardian.com/uk)
+* [Vox](http://www.vox.com/)

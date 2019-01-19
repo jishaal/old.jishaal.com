@@ -1,7 +1,7 @@
 export default {
 	// The blog's title as it appears in the layout header, and in the document
 	// <title> tag.
-	title: 'jishaal.com',
+	title: '@jishaal',
 
 	author: 'Jishaal Kalyan',
 	description:

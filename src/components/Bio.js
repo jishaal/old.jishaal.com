@@ -12,8 +12,8 @@ function Bio(props) {
 		>
 			<img src={bioPic} alt="Jishaal Kalyan" />
 			<p>
-				<a href="https://twitter.com/jishaal/">Jishaal Kalyan</a> is a Senior Frontend
-				Developer at <a href="https://xero.com/">Xero</a>.
+				<a href="https://twitter.com/jishaal/">Jishaal Kalyan</a> is a Frontend Developer at{' '}
+				<a href="https://xero.com/">Xero</a>.
 				<br />
 				He has a passion for using technology to create delightful experiences for people.
 			</p>

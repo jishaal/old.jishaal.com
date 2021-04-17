@@ -36,7 +36,7 @@ function BlogIndexPage({ blogPathname, pageCount, pageNumber, postRoutes }) {
 					</a>
 					<NavLink href="./about">About</NavLink> &bull;{' '}
 					<NavLink href="./tags">Tags</NavLink> &bull;{' '}
-					<a href="https://github.com/jishaal/jishaal.com">Source</a>
+					<a href="https://github.com/jishaal/old.jishaal.com">Source</a>
 				</div>
 			</footer>
 		</div>
